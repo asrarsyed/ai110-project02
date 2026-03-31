@@ -7,6 +7,75 @@
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
 
+For my initial UML design of PawPal+, I identified four main classes based on the core functional requirements and anticipated edge cases: **Owner, Pet, Task, and Scheduler**. Each class has clearly defined responsibilities that ensure modularity and allow for independant debugging.
+
+#### Classes and Responsibilities
+
+1. **Owner**
+
+   - **Attributes**: `name`, `available_time`, `preferences` (optional)
+   - **Responsibilities**:
+
+     - Manage multiple pets
+     - Provide access to pet and task data across pets
+     - Store scheduling constraints and preferences that the Scheduler reads
+
+   The `get_all_tasks()` method is a data-access helper that aggregates tasks across pets. The `Scheduler` remains solely responsible for scheduling decisions.
+
+2. **Pet**
+
+   - **Attributes**: `name`, `type`, optional details (`age`, `medical_needs`)
+   - **Responsibilities**:
+
+     - Store pet-specific information
+     - Maintain a list of tasks assigned to this pet
+     - Support adding or retrieving tasks
+
+3. **Task**
+
+   - **Attributes**: `name`, `duration`, `priority`, optional time constraint (`fixed_time` or `time_window`), `recurrence`
+   - **Responsibilities**:
+
+     - Represent a single activity for a pet
+     - Track completion status
+     - Handle recurrence rules for daily or weekly tasks
+     - Ensure validity of task details (e.g., positive duration, valid priority)
+
+4. **Scheduler**
+
+   - **Attributes/Inputs**: `owner` plus derived working data (tasks and available time)
+   - **Responsibilities**:
+
+     - Generate a daily schedule that prioritizes tasks based on priority, recurrence, and time constraints
+     - Use internal helper steps (sorting, conflict detection, recurrence handling) as part of `generate_schedule()`
+     - Handle edge cases such as exceeding available time, skipped critical tasks, and duplicate recurring tasks
+     - Produce a list of `ScheduleItem` outputs with task, start time, end time, and reasoning
+
+   The Scheduler derives tasks and available time from the Owner and may store them as temporary working data during schedule generation rather than as independent sources of truth.
+
+#### UML Overview
+
+- **Relationships**:
+
+  - `Owner` owns multiple `Pets`
+  - Each `Pet` has multiple `Tasks`
+  - `Scheduler` reads constraints from the `Owner`, gathers all tasks, and generates a coherent daily schedule
+  - The final output is represented as a list of `ScheduleItem` objects
+
+- **Design Principles**:
+
+  - Separation of concerns: Each class has a single responsibility
+  - Modularity: Adding new pets or task types requires minimal changes
+  - Edge case handling is incorporated early to ensure robustness
+
+- **Edge Case to Design Mapping**:
+
+  - `Task.validate()` ensures valid duration and priority values
+  - `Scheduler.detect_conflicts()` identifies overlapping or invalid task timings
+  - `Scheduler.generate_schedule()` handles time overflow by prioritizing tasks and dropping lower-priority tasks when needed
+  - `Task.is_critical` helps ensure essential tasks (for example medication) are not skipped
+
+
 **b. Design changes**
 
 - Did your design change during implementation?
