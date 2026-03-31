@@ -5,6 +5,8 @@
 - Total task time exceeds available time → drop lowest priority or warn
 - Invalid duration (0 or negative) → reject
 - Overlapping fixed-time tasks → detect conflict
+- Invalid minute values for time fields (must be 0-1439) → reject
+- Overnight windows (`end_minute < start_minute`) are out of scope unless explicitly supported
 
 #### Task Conflicts
 

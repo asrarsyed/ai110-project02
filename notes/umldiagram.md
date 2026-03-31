@@ -29,37 +29,41 @@ classDiagram
         +name: str
         +duration_minutes: int
         +priority: int
-        +fixed_time: str?
+        +fixed_time_minute: int?
         +time_window: TimeWindow?
         +recurrence: Recurrence
+        +next_due_date: date?
         +is_complete: bool
         +is_critical: bool
         +mark_complete()
-        +reschedule_next()
+        +reschedule_next(reference_date: date)
         +validate() bool
     }
 
     class Scheduler {
         +owner: Owner
-        +tasks: list~Task~
-        +available_time_minutes: int
+        +schedule_date: date?
         +generate_schedule() list~ScheduleItem~
+        +get_candidate_tasks() list~Task~
+        +get_available_time_minutes() int
         +sort_by_time(tasks: list~Task~) list~Task~
-        +filter_tasks(status: str, pet: Pet?) list~Task~
-        +detect_conflicts(tasks: list~Task~) list~str~
+        +filter_tasks(completed: bool?, pet: Pet?) list~Task~
+        +detect_conflicts(schedule_items: list~ScheduleItem~) list~str~
         +handle_recurring_tasks(tasks: list~Task~) list~Task~
     }
 
     class TimeWindow {
-        +start: str
-        +end: str
-        +contains(time: str) bool
+        +start_minute: int
+        +end_minute: int
+        +contains(minute: int) bool
+        +validate() bool
     }
 
     class ScheduleItem {
+        +pet: Pet
         +task: Task
-        +start_time: str
-        +end_time: str
+        +start_minute: int
+        +end_minute: int
         +reason: str
     }
 
@@ -75,7 +79,7 @@ classDiagram
     Task "0..1" --> "1" TimeWindow : constrained_by
     Task --> Recurrence : repeats_as
     Scheduler "1" --> "1" Owner : reads_constraints_from
-    Scheduler "1" --> "0..*" Task : selects_and_orders
+    Scheduler ..> Task : orders_indirectly_via_owner
     Scheduler "1" --> "0..*" ScheduleItem : outputs
 ```
 
@@ -83,6 +87,8 @@ classDiagram
 
 - Core entities remain Owner, Pet, Task, and Scheduler.
 - TimeWindow, Recurrence, and ScheduleItem are support types that make constraints and output explicit.
+- Time fields use integer minutes to avoid fragile string parsing during comparisons.
+- Scheduler reads tasks and time budget from Owner as the source of truth.
 - `priority` uses an integer scale (recommended 1-5), with higher values meaning higher priority.
 - Optional fields are marked with `?`.
 - Composition (`*--`) is used for Owner->Pet and Pet->Task because those objects are managed as part of their parent context.

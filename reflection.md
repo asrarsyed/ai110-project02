@@ -78,8 +78,11 @@ For my initial UML design of PawPal+, I identified four main classes based on th
 
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+Yes. I made two important design changes during implementation.
+
+First, I changed time fields from strings to integer minutes (for example, `540` for 9:00 AM). This makes sorting and conflict checks reliable and avoids bugs from string comparison.
+
+Second, I added date context for recurrence by updating `Task.reschedule_next(reference_date)` and adding `schedule_date` to `Scheduler`. Weekly tasks need a date reference to decide if they are due and when they should be scheduled next.
 
 ---
 

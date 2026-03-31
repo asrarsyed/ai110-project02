@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from enum import Enum
 from typing import Any
 
@@ -13,10 +14,13 @@ class Recurrence(Enum):
 
 @dataclass
 class TimeWindow:
-    start: str
-    end: str
+    start_minute: int
+    end_minute: int
 
-    def contains(self, time: str) -> bool:
+    def contains(self, minute: int) -> bool:
+        pass
+
+    def validate(self) -> bool:
         pass
 
 
@@ -25,16 +29,17 @@ class Task:
     name: str
     duration_minutes: int
     priority: int
-    fixed_time: str | None = None
+    fixed_time_minute: int | None = None
     time_window: TimeWindow | None = None
     recurrence: Recurrence = Recurrence.ONE_TIME
+    next_due_date: date | None = None
     is_complete: bool = False
     is_critical: bool = False
 
     def mark_complete(self) -> None:
         pass
 
-    def reschedule_next(self) -> None:
+    def reschedule_next(self, reference_date: date) -> None:
         pass
 
     def validate(self) -> bool:
@@ -78,28 +83,34 @@ class Owner:
 
 @dataclass
 class ScheduleItem:
+    pet: Pet
     task: Task
-    start_time: str
-    end_time: str
+    start_minute: int
+    end_minute: int
     reason: str
 
 
 @dataclass
 class Scheduler:
     owner: Owner
-    tasks: list[Task] = field(default_factory=list)
-    available_time_minutes: int = 0
+    schedule_date: date | None = None
 
     def generate_schedule(self) -> list[ScheduleItem]:
+        pass
+
+    def get_candidate_tasks(self) -> list[Task]:
+        pass
+
+    def get_available_time_minutes(self) -> int:
         pass
 
     def sort_by_time(self, tasks: list[Task]) -> list[Task]:
         pass
 
-    def filter_tasks(self, status: str, pet: Pet | None) -> list[Task]:
+    def filter_tasks(self, completed: bool | None, pet: Pet | None) -> list[Task]:
         pass
 
-    def detect_conflicts(self, tasks: list[Task]) -> list[str]:
+    def detect_conflicts(self, schedule_items: list[ScheduleItem]) -> list[str]:
         pass
 
     def handle_recurring_tasks(self, tasks: list[Task]) -> list[Task]:
