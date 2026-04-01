@@ -198,6 +198,14 @@ class Scheduler:
         return max(0, self.owner.available_time_minutes)
 
     def sort_by_time(self, tasks: list[Task]) -> list[Task]:
+        """Sort tasks by fixed time, criticality, priority, and duration.
+
+        Optimized sorting order:
+        1. Fixed-time tasks come first (sorted by their fixed time)
+        2. Critical tasks come before non-critical
+        3. Higher priority tasks come first
+        4. Shorter tasks come first (easier to fit in schedule)
+        """
         return sorted(
             tasks,
             key=lambda task: (
@@ -209,17 +217,74 @@ class Scheduler:
             ),
         )
 
-    def filter_tasks(self, completed: bool | None, pet: Pet | None) -> list[Task]:
+    def sort_by_status(self, tasks: list[Task]) -> list[Task]:
+        """Sort tasks by completion status (incomplete first)."""
+        return sorted(tasks, key=lambda task: task.is_complete)
+
+    def sort_by_pet_and_time(self, schedule_items: list[ScheduleItem]) -> list[ScheduleItem]:
+        """Sort schedule items by pet name, then by start time."""
+        return sorted(schedule_items, key=lambda item: (item.pet.name, item.start_minute))
+
+    def filter_tasks(
+        self,
+        completed: bool | None = None,
+        pet: Pet | None = None,
+        recurrence: Recurrence | None = None,
+        critical: bool | None = None,
+        min_priority: int | None = None,
+    ) -> list[Task]:
+        """Advanced filtering with multiple criteria.
+
+        Args:
+            completed: Filter by completion status (None = all)
+            pet: Filter to specific pet's tasks (None = all pets)
+            recurrence: Filter by recurrence type (None = all types)
+            critical: Filter by critical flag (None = all)
+            min_priority: Filter tasks with priority >= this value (None = all)
+        """
         source = pet.tasks if pet is not None else self.owner.get_all_tasks()
-        if completed is None:
-            return list(source)
-        return [task for task in source if task.is_complete is completed]
+
+        result = list(source)
+
+        if completed is not None:
+            result = [task for task in result if task.is_complete is completed]
+
+        if recurrence is not None:
+            result = [task for task in result if task.recurrence == recurrence]
+
+        if critical is not None:
+            result = [task for task in result if task.is_critical is critical]
+
+        if min_priority is not None:
+            result = [task for task in result if task.priority >= min_priority]
+
+        return result
+
+    def filter_by_pets(self, pets: list[Pet]) -> list[Task]:
+        """Get all tasks for multiple specific pets."""
+        tasks: list[Task] = []
+        for pet in pets:
+            tasks.extend(pet.tasks)
+        return tasks
 
     def detect_conflicts(self, schedule_items: list[ScheduleItem]) -> list[str]:
+        """Detect various scheduling conflicts and issues.
+
+        Checks for:
+        - Invalid time ranges (negative, beyond 24h, start >= end)
+        - Overlapping tasks
+        - Tasks exceeding time windows
+        - Over-scheduling (total time > available time)
+        """
         conflicts: list[str] = []
         items = sorted(schedule_items, key=lambda item: item.start_minute)
 
+        total_scheduled_minutes = 0
+
         for idx, item in enumerate(items):
+            total_scheduled_minutes += item.task.duration_minutes
+
+            # Check for invalid time ranges
             if (
                 item.start_minute < 0
                 or item.end_minute > 1440
@@ -227,18 +292,64 @@ class Scheduler:
             ):
                 conflicts.append(f"Invalid time range for task '{item.task.name}'.")
 
+            # Check if task exceeds its time window
+            if item.task.time_window is not None and (
+                item.start_minute < item.task.time_window.start_minute
+                or item.end_minute > item.task.time_window.end_minute
+            ):
+                conflicts.append(
+                    f"Task '{item.task.name}' scheduled outside its allowed time window "
+                    f"({item.task.time_window.start_minute}-{item.task.time_window.end_minute})."
+                )
+
             if idx == 0:
                 continue
 
+            # Check for overlapping tasks
             prev = items[idx - 1]
             if item.start_minute < prev.end_minute:
+                overlap_minutes = prev.end_minute - item.start_minute
                 conflicts.append(
-                    f"Overlap detected between '{prev.task.name}' and '{item.task.name}'."
+                    f"Overlap detected: '{prev.task.name}' and '{item.task.name}' "
+                    f"conflict by {overlap_minutes} minutes."
                 )
+
+        # Check for over-scheduling
+        available = self.get_available_time_minutes()
+        if total_scheduled_minutes > available:
+            conflicts.append(
+                f"Over-scheduled: {total_scheduled_minutes} minutes scheduled, "
+                f"but only {available} minutes available."
+            )
 
         return conflicts
 
+    def get_unscheduled_tasks(self, schedule_items: list[ScheduleItem]) -> list[tuple[Task, Pet]]:
+        """Find tasks that couldn't be scheduled.
+
+        Returns list of (task, pet) tuples for tasks that were candidates but not scheduled.
+        """
+        scheduled_task_ids = {id(item.task) for item in schedule_items}
+        candidate_pairs = self._get_task_pet_pairs()
+        candidate_tasks = self.handle_recurring_tasks([task for task, _ in candidate_pairs])
+        tasks_by_id = {id(task): pet for task, pet in candidate_pairs}
+
+        unscheduled = []
+        for task in candidate_tasks:
+            if id(task) not in scheduled_task_ids:
+                pet = tasks_by_id.get(id(task))
+                if pet:
+                    unscheduled.append((task, pet))
+
+        return unscheduled
+
     def handle_recurring_tasks(self, tasks: list[Task]) -> list[Task]:
+        """Filter tasks to only those due on the target date.
+
+        Logic:
+        - ONE_TIME tasks: include if not complete and due date is today or earlier
+        - DAILY/WEEKLY tasks: include if next_due_date is None or <= target_date
+        """
         target_date = self.schedule_date or date.today()
         due_tasks: list[Task] = []
 
@@ -258,6 +369,16 @@ class Scheduler:
                 due_tasks.append(task)
 
         return due_tasks
+
+    def advance_recurring_tasks(self, tasks: list[Task]) -> None:
+        """Auto-advance completed recurring tasks to their next due date.
+
+        Should be called after completing tasks to prepare for the next cycle.
+        """
+        reference_date = self.schedule_date or date.today()
+        for task in tasks:
+            if task.is_complete and task.recurrence != Recurrence.ONE_TIME:
+                task.reschedule_next(reference_date)
 
     def _get_task_pet_pairs(self) -> list[tuple[Task, Pet]]:
         pairs: list[tuple[Task, Pet]] = []

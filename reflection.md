@@ -4,85 +4,11 @@
 
 **a. Initial design**
 
-- Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
-
-For my initial UML design of PawPal+, I identified four main classes based on the core functional requirements and anticipated edge cases: **Owner, Pet, Task, and Scheduler**. Each class has clearly defined responsibilities that ensure modularity and allow for independant debugging.
-
-#### Classes and Responsibilities
-
-1. **Owner**
-
-   - **Attributes**: `name`, `available_time`, `preferences` (optional)
-   - **Responsibilities**:
-
-     - Manage multiple pets
-     - Provide access to pet and task data across pets
-     - Store scheduling constraints and preferences that the Scheduler reads
-
-   The `get_all_tasks()` method is a data-access helper that aggregates tasks across pets. The `Scheduler` remains solely responsible for scheduling decisions.
-
-2. **Pet**
-
-   - **Attributes**: `name`, `type`, optional details (`age`, `medical_needs`)
-   - **Responsibilities**:
-
-     - Store pet-specific information
-     - Maintain a list of tasks assigned to this pet
-     - Support adding or retrieving tasks
-
-3. **Task**
-
-   - **Attributes**: `name`, `duration`, `priority`, optional time constraint (`fixed_time` or `time_window`), `recurrence`
-   - **Responsibilities**:
-
-     - Represent a single activity for a pet
-     - Track completion status
-     - Handle recurrence rules for daily or weekly tasks
-     - Ensure validity of task details (e.g., positive duration, valid priority)
-
-4. **Scheduler**
-
-   - **Attributes/Inputs**: `owner` plus derived working data (tasks and available time)
-   - **Responsibilities**:
-
-     - Generate a daily schedule that prioritizes tasks based on priority, recurrence, and time constraints
-     - Use internal helper steps (sorting, conflict detection, recurrence handling) as part of `generate_schedule()`
-     - Handle edge cases such as exceeding available time, skipped critical tasks, and duplicate recurring tasks
-     - Produce a list of `ScheduleItem` outputs with task, start time, end time, and reasoning
-
-   The Scheduler derives tasks and available time from the Owner and may store them as temporary working data during schedule generation rather than as independent sources of truth.
-
-#### UML Overview
-
-- **Relationships**:
-
-  - `Owner` owns multiple `Pets`
-  - Each `Pet` has multiple `Tasks`
-  - `Scheduler` reads constraints from the `Owner`, gathers all tasks, and generates a coherent daily schedule
-  - The final output is represented as a list of `ScheduleItem` objects
-
-- **Design Principles**:
-
-  - Separation of concerns: Each class has a single responsibility
-  - Modularity: Adding new pets or task types requires minimal changes
-  - Edge case handling is incorporated early to ensure robustness
-
-- **Edge Case to Design Mapping**:
-
-  - `Task.validate()` ensures valid duration and priority values
-  - `Scheduler.detect_conflicts()` identifies overlapping or invalid task timings
-  - `Scheduler.generate_schedule()` handles time overflow by prioritizing tasks and dropping lower-priority tasks when needed
-  - `Task.is_critical` helps ensure essential tasks (for example medication) are not skipped
-
+I started with four classes: `Owner`, `Pet`, `Task`, and `Scheduler`. The idea was to keep responsibilities separated: `Pet` holds tasks, `Owner` holds pets and the available time budget, and `Scheduler` handles all the scheduling logic. I also added `TimeWindow`, `Recurrence`, and `ScheduleItem` as supporting types to make constraints and output explicit rather than buried in strings or raw integers. The full diagram is in [notes/umldiagram.md](notes/umldiagram.md).
 
 **b. Design changes**
 
-Yes. I made two important design changes during implementation.
-
-First, I changed time fields from strings to integer minutes (for example, `540` for 9:00 AM). This makes sorting and conflict checks reliable and avoids bugs from string comparison.
-
-Second, I added date context for recurrence by updating `Task.reschedule_next(reference_date)` and adding `schedule_date` to `Scheduler`. Weekly tasks need a date reference to decide if they are due and when they should be scheduled next.
+Two things changed. First, I switched time fields from strings to integer minutes, so `9:00 AM` becomes `540`. This made sorting and conflict checks a lot simpler since you can just compare numbers. Second, I added a `schedule_date` field to `Scheduler` and a `reference_date` parameter to `Task.reschedule_next()`. Without a date reference, weekly recurring tasks had no way to know when they were next due or how to advance correctly.
 
 ---
 
@@ -90,13 +16,11 @@ Second, I added date context for recurrence by updating `Task.reschedule_next(re
 
 **a. Constraints and priorities**
 
-- What constraints does your scheduler consider (for example: time, priority, preferences)?
-- How did you decide which constraints mattered most?
+The scheduler considers fixed times, time windows, priority (1-5), the critical flag, available time, duration, and recurrence rules. The priority order I settled on is: fixed time first, then critical flag, then priority level, then shorter duration as a tiebreaker. Fixed time is at the top because those tasks have no flexibility. Critical is next because something like medication shouldn't get skipped just because the schedule is full. See [notes/edgecases.md](notes/edgecases.md) for the edge cases that shaped these decisions.
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+The scheduler is greedy. It places tasks one at a time in priority order and never rearranges earlier ones to fit later ones. So if a 30-minute high-priority task locks in a time slot, a lower-priority task that could've fit if things were reordered just gets skipped. The alternative would be something like bin-packing, which could fit more tasks overall, but it's NP-complete and unpredictable. A pet owner probably doesn't want the morning walk randomly moved to fit something else. Predictability felt more important than squeezing in one extra task.
 
 ---
 
@@ -104,13 +28,11 @@ Second, I added date context for recurrence by updating `Task.reschedule_next(re
 
 **a. How you used AI**
 
-- How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
-- What kinds of prompts or questions were most helpful?
+I mainly used AI for implementing the lambda sorting key and for thinking through the conflict detection algorithm. The prompts that helped most were asking how to sort by multiple criteria at once (which led to the tuple-based key in `sort_by_time`) and asking what a lightweight conflict detection strategy would look like (which confirmed the sort-then-linear-scan approach). I also used it to debug why recurring tasks weren't advancing. The issue turned out to be missing the `reference_date` parameter. More detail on the algorithm decisions is in [notes/algorithm_reference.md](notes/algorithm_reference.md).
 
 **b. Judgment and verification**
 
-- Describe one moment where you did not accept an AI suggestion as-is.
-- How did you evaluate or verify what the AI suggested?
+When I asked for help with `detect_conflicts()`, the initial suggestion was a nested loop that compared every pair of tasks. It was O(n²) and would report the same conflict twice (once for A to B, once for B to A). I rejected that and kept the sort-first, sequential-check approach instead. It's O(n log n), finds each conflict exactly once, and is easier to follow. I verified it manually with overlapping test cases and confirmed it caught all conflicts without duplicates.
 
 ---
 
@@ -118,13 +40,11 @@ Second, I added date context for recurrence by updating `Task.reschedule_next(re
 
 **a. What you tested**
 
-- What behaviors did you test?
-- Why were these tests important?
+I tested the core scheduling behaviors: that tasks sort correctly by priority and fixed time, that filtering by pet, recurrence, priority, and critical flag all work individually and in combination, that recurring tasks advance by the right number of days, that `detect_conflicts` catches overlaps, time window violations, and over-scheduling, and that `get_unscheduled_tasks` correctly identifies tasks that didn't fit. These mattered because they're the behaviors the scheduler depends on. If sorting or filtering is wrong, the generated schedule is wrong.
 
 **b. Confidence**
 
-- How confident are you that your scheduler works correctly?
-- What edge cases would you test next if you had more time?
+I'm fairly confident the scheduler handles the main cases correctly. The tests cover the algorithm improvements and the happy path. Edge cases I'd want to add more coverage for: tasks with both a fixed time and a time window that conflict with each other, schedules where every task is critical and exceeds available time, and multiple pets with overlapping fixed-time tasks. The existing edge case list in [notes/edgecases.md](notes/edgecases.md) has a few more I didn't fully test.
 
 ---
 
@@ -132,12 +52,12 @@ Second, I added date context for recurrence by updating `Task.reschedule_next(re
 
 **a. What went well**
 
-- What part of this project are you most satisfied with?
+The class structure held up well throughout. I didn't have to rethink the overall design, just fill in the details. Having `Scheduler` separate from the data classes meant I could change scheduling logic without touching `Task` or `Pet`, which made iteration easier.
 
 **b. What you would improve**
 
-- If you had another iteration, what would you improve or redesign?
+The greedy scheduler works, but it sometimes produces schedules with gaps that look odd. For example, a task might end up at midnight because that was the first open slot. I'd want to add a preference for scheduling tasks later in the day (closer to when they'd actually happen) rather than always packing them toward the start. I'd also improve the Streamlit UI to actually reflect the full system, since right now it's mostly a placeholder.
 
 **c. Key takeaway**
 
-- What is one important thing you learned about designing systems or working with AI on this project?
+The main thing I learned is that AI suggestions are a starting point, not a final answer. The nested-loop conflict detection it suggested would have worked, but it wasn't the right tradeoff for this case. Having a clear sense of what I actually needed (single-pass, no duplicate messages, readable) made it easy to evaluate the suggestion and push back.

@@ -39,7 +39,7 @@ pip install -r requirements.txt
     - [x] a. List the [building blocks](notes/brainstorm.md) needed for the system
     - [x] b. Actually draft the [UML Diagram](notes/umldiagram.md)
 - [x] 3. Convert UML into Python class stubs (no logic yet).
-- [ ] 4. Implement scheduling logic in small increments.
-- [ ] 5. Add tests to verify key behaviors.
+- [x] 4. Implement scheduling logic in small increments.
+- [x] 5. Add tests to verify key behaviors.
 - [ ] 6. Connect your logic to the Streamlit UI in `app.py`.
 - [ ] 7. Refine UML so it matches what you actually built.
