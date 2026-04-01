@@ -77,10 +77,13 @@ The core scheduling logic, sorting, filtering, recurrence, and conflict detectio
 
 ### Screenshots
 
-[app](images/01.png)
-[app](images/02.png)
-[app](images/03.png)
-[app](images/04.png)
+<a href="images/01.png" target="_blank"><img src='images/01.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+
+<a href="images/02.png" target="_blank"><img src='images/02.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+
+<a href="images/03.png" target="_blank"><img src='images/03.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
+
+<a href="images/04.png" target="_blank"><img src='images/04.png' title='PawPal App' width='' alt='PawPal App' class='center-block' /></a>
 
 ### My project workflow
 
